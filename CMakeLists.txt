@@ -392,3 +392,5 @@ add_custom_target(submit-p4
 )
 
 add_dependencies(check-clang-tidy gtest bustub) # needs gtest headers, compile_commands.json
+set(CMAKE_C_COMPILER "/usr/bin/clang")
+set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
