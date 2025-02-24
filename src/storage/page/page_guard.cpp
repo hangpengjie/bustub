@@ -3,28 +3,95 @@
 
 namespace bustub {
 
-BasicPageGuard::BasicPageGuard(BasicPageGuard &&that) noexcept {}
+BasicPageGuard::BasicPageGuard(BasicPageGuard &&that) noexcept {
+  bpm_ = that.bpm_;
+  page_ = that.page_;
+  is_dirty_ = that.is_dirty_;
+  that.bpm_ = nullptr;
+  that.page_ = nullptr;
+  that.is_dirty_ = false;
+}
 
-void BasicPageGuard::Drop() {}
+void BasicPageGuard::Drop() {
+  if (bpm_ != nullptr) {
+    bpm_->UnpinPage(PageId(), is_dirty_);
+  }
+  bpm_ = nullptr;
+  page_ = nullptr;
+  is_dirty_ = false;
+}
 
-auto BasicPageGuard::operator=(BasicPageGuard &&that) noexcept -> BasicPageGuard & { return *this; }
+auto BasicPageGuard::operator=(BasicPageGuard &&that) noexcept -> BasicPageGuard & {
+  Drop();
+  bpm_ = that.bpm_;
+  page_ = that.page_;
+  is_dirty_ = that.is_dirty_;
+  that.bpm_ = nullptr;
+  that.page_ = nullptr;
+  that.is_dirty_ = false;
+  return *this;
+}
 
-BasicPageGuard::~BasicPageGuard(){};  // NOLINT
+BasicPageGuard::~BasicPageGuard() { Drop(); }
 
-ReadPageGuard::ReadPageGuard(ReadPageGuard &&that) noexcept = default;
+auto BasicPageGuard::UpgradeRead() -> ReadPageGuard {
+  page_->RLatch();
+  auto ret = ReadPageGuard(bpm_, page_);
+  bpm_ = nullptr;
+  page_ = nullptr;
+  is_dirty_ = false;
+  return ret;
+}
 
-auto ReadPageGuard::operator=(ReadPageGuard &&that) noexcept -> ReadPageGuard & { return *this; }
+auto BasicPageGuard::UpgradeWrite() -> WritePageGuard {
+  page_->WLatch();
+  auto ret = WritePageGuard(bpm_, page_);
+  bpm_ = nullptr;
+  page_ = nullptr;
+  is_dirty_ = false;
+  return ret;
+}
 
-void ReadPageGuard::Drop() {}
+ReadPageGuard::ReadPageGuard(ReadPageGuard &&that) noexcept { guard_ = std::move(that.guard_); }
 
-ReadPageGuard::~ReadPageGuard() {}  // NOLINT
+auto ReadPageGuard::operator=(ReadPageGuard &&that) noexcept -> ReadPageGuard & {
+  Drop();
+  guard_ = std::move(that.guard_);
+  return *this;
+}
 
-WritePageGuard::WritePageGuard(WritePageGuard &&that) noexcept = default;
+void ReadPageGuard::Drop() {
+  auto &guard = guard_;
+  if (guard.page_ != nullptr) {
+    guard.bpm_->UnpinPage(guard.PageId(), guard.is_dirty_);
+    guard.page_->RUnlatch();
+  }
+  guard.bpm_ = nullptr;
+  guard.page_ = nullptr;
+  guard.is_dirty_ = false;
+}
 
-auto WritePageGuard::operator=(WritePageGuard &&that) noexcept -> WritePageGuard & { return *this; }
+ReadPageGuard::~ReadPageGuard() { Drop(); }
 
-void WritePageGuard::Drop() {}
+WritePageGuard::WritePageGuard(WritePageGuard &&that) noexcept { guard_ = std::move(that.guard_); }
 
-WritePageGuard::~WritePageGuard() {}  // NOLINT
+auto WritePageGuard::operator=(WritePageGuard &&that) noexcept -> WritePageGuard & {
+  Drop();
+  guard_ = std::move(that.guard_);
+  return *this;
+}
+
+void WritePageGuard::Drop() {
+  auto &guard = guard_;
+  if (guard.page_ != nullptr) {
+    guard.bpm_->UnpinPage(guard.PageId(), guard.is_dirty_);
+    guard.page_->WUnlatch();
+  }
+  guard.bpm_ = nullptr;
+  guard.page_ = nullptr;
+  guard.is_dirty_ = false;
+}
+
+WritePageGuard::~WritePageGuard() { Drop(); }
 
 }  // namespace bustub
